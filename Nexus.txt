@@ -1,0 +1,1109 @@
+-- Services
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+
+-- Remotes
+local GetPlayerDataRemote = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
+
+-- Function to check if a player is alive
+local function IsAlive(player, playerData)
+    local role = playerData[player.Name]
+    return role and not role.Killed and not role.Dead
+end
+
+-- Function to update player data
+local function updatePlayerData()
+    if GetPlayerDataRemote then
+        local data = GetPlayerDataRemote:InvokeServer()
+        local playerData = {}
+        for _, player in pairs(Players:GetPlayers()) do
+            playerData[player.Name] = data[player.Name] or { Role = "", Killed = false, Dead = false }
+        end
+        return playerData
+    end
+end
+
+-- Function to get the role of a player
+local function GetPlayerRole(player, playerData)
+    return playerData[player.Name] and playerData[player.Name].Role
+end
+
+local function getRoleColor(role)
+    if role == "Murderer" then
+        return Color3.fromRGB(255, 0, 0)
+    elseif role == "Sheriff" then
+        return Color3.fromRGB(0, 0, 255)
+    elseif role == "Innocent" then
+        return Color3.fromRGB(0, 200, 0)
+    elseif role == "Hero" then
+        return Color3.fromRGB(0, 255, 0)
+    else
+        return Color3.fromRGB(120, 200, 120)
+    end
+end
+
+-- Function to highlight a player
+local function HighlightPlayer(player, role)
+    local character = player.Character
+    if character then
+        local highlight = character:FindFirstChild("Highlight")
+        if not highlight then
+            highlight = Instance.new("Highlight")
+            highlight.Parent = character
+        end
+        local roleColor = getRoleColor(role)
+        highlight.FillColor = roleColor
+        highlight.OutlineColor = roleColor
+
+        -- Create a BillboardGui to display the player's name and role
+        local head = character:FindFirstChild("Head")
+        if head then
+            local espName = head:FindFirstChild("ESPName")
+            if not espName then
+                espName = Instance.new("BillboardGui")
+                espName.Name = "ESPName"
+                espName.Parent = head
+                espName.AlwaysOnTop = true
+                espName.Size = UDim2.new(0, 100, 0, 50)
+                espName.StudsOffset = Vector3.new(0, 2, 0)
+
+                local espText = Instance.new("TextLabel")
+                espText.Font = Enum.Font.SourceSans
+                espText.TextSize = 18
+                espText.TextColor3 = roleColor
+                espText.BackgroundTransparency = 1
+                espText.Size = UDim2.new(1, 0, 1, 0)
+                espText.Parent = espName
+            end
+
+            local espText = espName:FindFirstChild("TextLabel")
+            if espText then
+                espText.Text = string.format("%s (%s)", player.Name, role)
+                espText.TextColor3 = roleColor
+            end
+        end
+    end
+end
+
+-- Function to highlight players with specific roles
+local function HighlightRoles()
+    local playerData = updatePlayerData()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local role = GetPlayerRole(player, playerData)
+            if role then
+                HighlightPlayer(player, role)
+            end
+        end
+    end
+end
+
+-- Run the script in the background
+coroutine.wrap(function()
+    while true do
+        HighlightRoles()
+        wait(1) -- Update every 1 seconds for smoother updates
+    end
+end)()
+
+if not game:IsLoaded() then 
+    game.Loaded:Wait()
+end
+
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GetPlayerDataRemote = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
+
+local Murderer, Sheriff = nil, nil
+local infJumpConnection, Device = false, nil
+local highlights = {}
+
+if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled and not UserInputService.MouseEnabled then
+	Device = "MOBILE"
+end
+
+local function FindMap()
+    for _, v in pairs(workspace:GetChildren()) do
+        if v:FindFirstChild("CoinContainer") then
+            return v.CoinContainer
+        end
+    end
+    return nil
+end
+
+local function findGunDrop()
+    if FindMap() then 
+        return FindMap().Parent:FindFirstChild("GunDrop") or false
+    end
+end
+
+local function IsAlive(Player, roles)
+    local role = roles and roles[Player.Name]
+    return role and not role.Killed and not role.Dead
+end
+
+local function updatePlayerData()
+    if GetPlayerDataRemote then
+        return GetPlayerDataRemote:InvokeServer()
+    end
+end
+
+local function CreateHighlight()
+    for _, v in pairs(Players:GetChildren()) do
+        if v ~= LocalPlayer then 
+            pcall(function()
+                if v.Character and not v.Character:FindFirstChild("Highlight") then
+                    Instance.new("Highlight", v.Character)  
+                end
+            end)
+        end
+    end
+end
+
+local function UpdateHighlights()
+    for _, v in pairs(Players:GetChildren()) do
+        pcall(function()
+            local highlight = v.Character and v.Character:FindFirstChild("Highlight")
+            if highlight then
+                if IsAlive(v, roles) then
+                    local role = roles[v.Name]
+                    if role then
+                        if role.Role == "Murderer" then
+                            highlight.FillColor = Color3.fromRGB(225, 0, 0)
+                        elseif role.Role == 'Sheriff' then
+                            highlight.FillColor = Color3.fromRGB(0, 0, 225)
+                        elseif role.Role == 'Hero' then
+                            highlight.FillColor = Color3.fromRGB(0, 0, 225)
+                        else
+                            highlight.FillColor = Color3.fromRGB(76, 215, 134)
+                        end 
+                    else 
+                        highlight.FillColor = Color3.fromRGB(76, 215, 134)
+                    end
+                else
+                    highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                end
+            end
+        end)
+    end
+end
+
+local function DestroyHighlight()
+    for _, player in next, Players:GetPlayers()  do
+        if player ~= LocalPlayer then
+            local character = player.Character
+            if character then
+                local highlight = character:FindFirstChild("Highlight")
+                if highlight then
+                    highlight:Destroy()
+                end
+            end
+        end
+    end
+end
+
+local function InGame()
+    local Cannon = Workspace:FindFirstChild("ConfettiCannon")
+    if Cannon then
+        LocalPlayer.PlayerGui.MainGUI.Game.EarnedXP.Visible = false
+        LocalPlayer.PlayerGui.MainGUI.Game.Timer.Visible = false
+    elseif Murderer == nil or not Murderer or not Sheriff then
+        return false
+    elseif LocalPlayer.PlayerGui.MainGUI.Game.EarnedXP.XPText.Text == "900" and LocalPlayer.PlayerGui.MainGUI.Game.Timer.Visible == false and Murderer ~= LocalPlayer.Name then
+        return false
+    elseif LocalPlayer.PlayerGui.MainGUI.Game.EarnedXP.Visible == true or LocalPlayer.PlayerGui.MainGUI.Game.Timer.Visible == true then
+        return true
+    else
+        return false
+    end
+end
+
+local function GetMurderer()
+    for _, player in ipairs(game.Players:GetPlayers()) do 
+        if player.Backpack:FindFirstChild("Knife") or (player.Character and player.Character:FindFirstChild("Knife")) then
+            return player.Name
+        end
+    end   
+    return nil 
+end
+
+local function GetSheriff()
+    for _, player in ipairs(game.Players:GetPlayers()) do 
+        if player.Backpack:FindFirstChild("Gun") or (player.Character and player.Character:FindFirstChild("Gun")) then
+            return player.Name
+        end
+    end   
+    return nil 
+end
+ 
+local function tween_teleport(TargetFrame)
+    local character = LocalPlayer.Character
+    local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+        
+    if humanoidRootPart and IsAlive(LocalPlayer, roles) then
+        local distance = (humanoidRootPart.Position - TargetFrame.p).Magnitude
+        local tweenInfo = TweenInfo.new(distance / 70, Enum.EasingStyle.Linear, Enum.EasingDirection.In)
+             
+        local move = Services.TweenService:Create(humanoidRootPart, tweenInfo, {CFrame = TargetFrame})
+        move:Play()
+        move.Completed:Wait()
+
+    end
+end
+
+local function playerHasItem(itemName)
+    repeat task.wait() 
+         MainGUI = LocalPlayer.PlayerGui:FindFirstChild("MainGUI")
+    until MainGUI
+
+    for _, child in pairs(MainGUI.Game.Inventory.Main.Perks.Items.Container.Current.Container:GetChildren()) do
+        if child:IsA("Frame") and child.ItemName.Label.Text == itemName then
+            return true
+        end
+    end
+
+    return false
+end
+
+
+local nexus = loadstring(game:HttpGet("https://github.com/raditself/d/releases/download/x/xPip.txt"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/raditself/d/main/BetterSaveManager"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/raditself/d/main/BetterInterfaceManager1"))()
+
+local Options = nexus.Options
+SaveManager:SetLibrary(nexus)
+
+local Window = nexus:CreateWindow({
+    Title = "skid", "",
+    TabWidth = 150,
+    Size = UDim2.fromOffset(480, 360),
+    Acrylic = true,
+    Theme = "Dark",
+})
+
+local Tabs = {
+    Main = Window:AddTab({
+        Title = "Main",
+        Icon = "rbxassetid://10734884548"
+    }),
+    Sheriff = Window:AddTab({
+        Title = "Sheriff",
+        Icon = "rbxassetid://10747372702"
+    }),
+    Murderer = Window:AddTab({
+        Title = "Murderer",
+        Icon = "rbxassetid://10747372992"
+    }),
+    Server = Window:AddTab({
+        Title = "Server",
+        Icon = "rbxassetid://10734949856"
+    }),
+    Settings = Window:AddTab({
+        Title = "Settings",
+        Icon = "settings"
+    }),
+}
+
+local RemoteEventHandler = {}
+RemoteEventHandler.RemoteEvent = function(event, ...)
+    local args = {...}
+    event:FireServer(unpack(args))
+end
+
+local function equipSprayPaint(toy)
+    if LocalPlayer and LocalPlayer.Character then
+        local toyFound = false
+        local toyInCharacter = false
+        RemoteEventHandler.RemoteEvent(ReplicatedStorage.Remotes.Extras.ReplicateToy, "SprayPaint")
+        for _, child in pairs(LocalPlayer.Backpack:GetChildren()) do
+            if child.Name == "SprayPaint" then
+                child.Parent = LocalPlayer.Character
+                toyFound = child
+                toyInCharacter = true
+            end
+        end
+        if not toyFound then
+            for _, child in pairs(LocalPlayer.Character:GetChildren()) do
+                if child.Name == "SprayPaint" then
+                    toyFound = child
+                end
+            end
+        end
+        if toyFound then
+            toy(toyFound)
+            if toyInCharacter then
+                toyFound.Parent = LocalPlayer.Backpack
+            end
+        else
+            nexus:Notify({Title = 'Notification', Content = 'Uh oh! you need SprayPaint Toy for this!', Duration = 5})
+        end
+    end
+end
+
+local playerDropdown = Tabs.Main:AddDropdown("Select Player", {
+    Title = "Select Player",
+    Values = {},
+    Multi = false,
+    Default = false,
+    Callback = function(selectedPlayerName)
+        -- Code to be executed when a player is selected
+        local selectedPlayer = Players:FindFirstChild(selectedPlayerName)
+        if selectedPlayer then
+            -- Store the selected player for later use
+            selectedPlayerInstance = selectedPlayer
+        end
+    end
+})
+
+local Toggle = Tabs.Main:AddToggle("Loop", {
+    Title = "Loop",
+    Default = false,
+    Callback = function(value)
+        if value then
+            coroutine.wrap(function()
+                while true do
+                    task.wait()
+                    if selectedPlayerInstance and selectedPlayerInstance.Character then
+                        equipSprayPaint(function(toy)
+                            if selectedPlayerInstance and selectedPlayerInstance.Character then
+                                pcall(TweenService, toy, selectedPlayerInstance)
+                            end
+                        end)
+                    end
+                    task.wait()
+                end
+            end)()
+        end
+    end
+})
+
+-- Populate the dropdown with player names
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        table.insert(playerDropdown.Values, player.Name)
+    end
+end
+
+-- Set the default value of the dropdown to the first player in the list
+if #playerDropdown.Values > 0 then
+    playerDropdown:SetValue(playerDropdown.Values[1])
+end
+
+
+-- Create a toggle option for auto dodging knives
+local Toggle = Tabs.Main:AddToggle("AutoDodgeKnifes", {
+    Title = "Auto Dodge Knifes",
+    Default = false,
+    Callback = function(value)
+        if value then
+            -- Create a task to auto dodge knives
+            local function autoDodgeKnives()
+                -- Wait for a throwing knife to be added to the workspace
+                workspace.ChildAdded:Connect(function(child)
+                    if child.Name == "ThrowingKnife" and child:IsA("Model") and LocalPlayer.Character then
+                        -- Get the local player's humanoid root part
+                        local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("PrimaryPart")
+
+                        -- Wait for the throwing knife to be close enough
+                        while child and humanoidRootPart do
+                            task.wait()
+                            local distance = (humanoidRootPart.Position - child:GetPivot().Position).Magnitude
+                            if distance < 15 then
+                                -- Calculate the direction to dodge
+                                local dodgeDirection = humanoidRootPart.Position.X - child:GetPivot().Position.X
+                                local dodgeHeight = humanoidRootPart.Position.Y - child:GetPivot().Position.Y
+                                if dodgeHeight < 4.35 then
+                                    -- Dodge the throwing knife
+                                    humanoidRootPart.CFrame = humanoidRootPart.CFrame * CFrame.new(-dodgeDirection * 3, 0, 0)
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+
+            -- Start the auto dodge knives task
+            autoDodgeKnives()
+        else
+            -- Remove the auto dodge knives task
+            workspace.ChildAdded:Disconnect()
+        end
+    end
+})
+
+local Toggle = Tabs.Main:AddToggle("LoopSound", {
+    Title = "Loop Sound",
+    Default = false,
+    Callback = function(value)
+        Options.LoopSound.Value = value
+        if value then
+            (coroutine.wrap(function()
+                while Options.LoopSound.Value do
+                    task.wait(.25)
+                    for _, Y in pairs(workspace:GetDescendants()) do
+                        if Y:IsA("Sound") then
+                            Y:Play()
+                        end
+                    end
+                end
+            end))()
+        end
+    end
+})
+
+local Toggle = Tabs.Main:AddToggle("GrabbingGun", {
+    Title = "Automatically Grab Gun",
+    Default = false,
+    Callback = function(value)
+        if value then
+            Options.GrabbingGun.Value = true
+            task.spawn(function()
+                (coroutine.wrap(function()
+                    while Options.GrabbingGun.Value do
+                        task.wait(.25)
+                        pcall(function()
+                            local gunDrop = findGunDrop()
+                            if not gunDrop then
+                                GettingGun = false
+                            else
+                                local murderer = game.Players:FindFirstChild(Murderer)
+                                local Humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+                                local distance = (murderer.Character.PrimaryPart.Position - gunDrop.Position).Magnitude
+
+                                if distance > 10 and not GettingGun then
+                                    GettingGun = true
+                                    local savedPosition = Humanoid.CFrame
+                                    Humanoid.CFrame = CFrame.new(gunDrop.Position)
+                                    LocalPlayer.Character.Humanoid.PlatformStand = false
+                                    repeat
+                                        task.wait()
+                                    until not workspace:FindFirstChild("GunDrop")
+                                    Humanoid.CFrame = savedPosition
+                                    LocalPlayer.Character.Humanoid.PlatformStand = false
+                                    LocalPlayer.Character.Humanoid:ChangeState(.1)
+                                    GettingGun = false
+                                end
+                            end
+
+                            -- Check if the gun drop is still present
+                            if not workspace:FindFirstChild("GunDrop") then
+                                -- If not, reset the GettingGun variable
+                                GettingGun = false
+                            end
+                        end)
+                    end
+                    return coroutine.yield("...")
+                end))()
+            end)
+        else
+            Options.AutoGrabGun.Value = false
+        end
+    end
+})
+
+local function isValidPart(part, checkMaterial)
+    if IsAlive(LocalPlayer, roles) then
+        return part and part:IsA("BasePart") and part.Parent and part.Parent.Name == "Coin_Server" and part.Parent:FindFirstChild("TouchInterest") and (not checkMaterial or part.Material == Enum.Material.Glass)
+    end
+    return false
+end
+
+
+local Toggle = Tabs.Main:AddToggle("CoinChams", {
+    Title = "Coin Chams",
+    Default = false,
+    Callback = function(value)
+        if value then 
+            repeat task.wait()
+                if FindMap() then
+                    for _, v in pairs(FindMap():GetChildren()) do
+                        if v.Name == 'Coin_Server' and not highlights[v] then
+                            local esp = Instance.new("Highlight")
+                            esp.Name = "CoinESP"
+                            esp.FillTransparency = 0.5
+                            esp.FillColor = Color3.new(94/255, 1, 255/255)
+                            esp.OutlineColor = Color3.new(94/255, 1, 255/255)
+                            esp.OutlineTransparency = 0
+                            esp.Parent = v.Parent
+                            highlights[v] = esp  
+                        end
+                    end
+                end 
+            until not Options.CoinChams.Value
+            for _, highlight in pairs(highlights) do
+                highlight:Destroy()
+            end         
+        end
+    end
+})
+
+local Toggle = Tabs.Main:AddToggle("PlayerESP", {
+    Title = "Player Chams",
+    Default = false,
+    Callback = function(value)
+        if value then 
+        repeat task.wait()
+            CreateHighlight() 
+            UpdateHighlights()
+        until not Options.PlayerESP.Value
+        DestroyHighlight()
+        end 
+    end
+})  
+
+local ToggleGunCham = Tabs.Main:AddToggle("GunCham", {
+    Title = "Gun Dropped ESP",
+    Default = false,
+    Callback = function(value)
+        if value then
+            local success, result = pcall(function()
+                repeat
+                    task.wait()
+
+                    if findGunDrop() then
+                        local esp = findGunDrop():FindFirstChild("GunESP")
+
+                        if not esp then
+                            esp = Instance.new("Highlight")
+                            esp.Name = "GunESP"
+                            esp.FillTransparency = 0.5
+                            esp.FillColor = Color3.new(94, 1, 255)
+                            esp.OutlineColor = Color3.new(94, 1, 255)
+                            esp.OutlineTransparency = 0
+                            esp.Parent = findGunDrop()
+                        end
+                    end
+                until not Options.GunCham.Value
+
+                if findGunDrop() then
+                    local esp = findGunDrop():FindFirstChild("GunESP")
+                    if esp then
+                        esp:Destroy()
+                    end
+                end
+            end)
+
+            if not success then
+                warn("Error in ToggleGunCham callback:", result)
+            end
+        end
+    end
+})
+
+local Toggle = Tabs.Murderer:AddToggle("KillAura", {
+    Title = "Kill Aura",
+    Default = false,
+    Callback = function(value)
+        if value then 
+            repeat
+                task.wait()
+                local success, result = pcall(function() 
+                    local Knife = LocalPlayer.Backpack:FindFirstChild("Knife") or LocalPlayer.Character:FindFirstChild("Knife")
+                    local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+                    
+                    for i, v in ipairs(game.Players:GetPlayers()) do
+                        if v ~= LocalPlayer and v.Character and Knife and IsAlive(v, roles) then
+                            local EnemyRoot = v.Character:FindFirstChild("HumanoidRootPart")
+                            if EnemyRoot then
+
+                                local EnemyPosition = EnemyRoot.Position
+                                local EnemyDistance = (EnemyPosition - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                                
+                                if EnemyDistance <= tonumber(Options.Distance.Value) and Knife and Murderer == LocalPlayer.Name then
+                                    humanoid:EquipTool(Knife) 
+                                    wait(0.1)
+                                    local teleportPosition = LocalPlayer.Character.HumanoidRootPart.Position + LocalPlayer.Character.HumanoidRootPart.CFrame.LookVector * 3 
+                                    EnemyRoot.CFrame = CFrame.new(teleportPosition)
+                                    
+                                    if Device ~= "MOBILE" then 
+                                        LocalPlayer.Character.Knife.Stab:FireServer('Down') 
+                                        firetouchinterest(EnemyRoot, myKnife.Handle, 1)
+                                        wait(0.1)
+                                        firetouchinterest(EnemyRoot, myKnife.Handle, 0)
+                                    end 
+                                end
+                            end
+                        end  
+                    end
+                end)
+            until not Options.KillAura.Value 
+        end
+    end
+})
+
+local Slider = Tabs.Murderer:AddSlider("Distance", {
+	Title = "Aura Distance",
+	Default = 5,
+	Min = 5,
+	Max = 50,
+	Rounding = 0,
+	Callback = function(Value)
+	end
+})
+
+local Dropdown = Tabs.Settings:AddDropdown("AimAssistType", {
+    Title = "Aim Assist",
+    Values = {"Seismic", "Overflow", "Dynamic", "Regular"},
+    Multi = false,
+    Default = "Overflow",
+    Callback = function(value)
+    end
+})
+
+local Toggle = Tabs.Sheriff:AddToggle("SilentAim", {
+    Title = "Silent Aim",
+    Default = true,
+    Callback = function(value)
+    end
+})
+
+Tabs.Murderer:AddButton({
+    Title = "Kill All",
+    Callback = function()
+        local Knife = LocalPlayer.Backpack:FindFirstChild("Knife") or LocalPlayer.Character:FindFirstChild("Knife")
+        if Knife and Knife:IsA("Tool") then 
+
+            local humanoid = LocalPlayer.Character:WaitForChild("Humanoid")
+            humanoid:EquipTool(Knife)
+            
+            for i = 1, 3 do
+                local success, result = pcall(function() 
+                    for i, v in ipairs(Players:GetPlayers()) do task.wait()
+                        if v ~= LocalPlayer and v.Character and IsAlive(v, roles) then
+                            local enemyRoot = v.Character:WaitForChild("HumanoidRootPart")
+
+                            if Device == "MOBILE" then 
+                                v.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -2)
+                            else
+                                LocalPlayer.Character.Knife.Stab:FireServer('Down') 
+                                firetouchinterest(enemyRoot, Knife.Handle, 1)
+                                wait(0.1)
+                                firetouchinterest(enemyRoot, Knife.Handle, 0)
+                            end 
+                        end         
+                    end
+                end)  
+            end
+            LocalPlayer.Character.HumanoidRootPart.CFrame = initialPosition
+        end
+    end
+})
+
+
+local Toggle = Tabs.Settings:AddToggle("Settings", {
+    Title = "Save Settings",
+	Default = false,
+    Callback = function(value)
+		if value then 
+            repeat task.wait(.1) 
+                if _G.FB35D == true then print("return") return end SaveManager:Save(game.PlaceId) 
+            until not Options.Settings.Value
+		end
+	end
+})
+
+Tabs.Settings:AddButton({
+	Title = "Delete Setting Config",
+	Callback = function()
+		delfile("x/settings/".. game.PlaceId ..".json")
+	end  
+})  
+
+nexus:Notify({Title = 'Notification', Content = 'This script is currently in development and is currently in its beta phase.', Duration = 1})
+
+coroutine.wrap(function()
+    while true do
+        task.wait(.1)
+        if _G.FB35D == true then 
+            return 
+        end
+        local success, err = pcall(function()
+            Murderer = GetMurderer()
+            Sheriff = GetSheriff()
+            roles = updatePlayerData()
+        end)
+    end
+end)()
+
+local Toggle = Tabs.Sheriff:AddToggle("InfiniteSpraySize", {
+    Title = "Infinite Spray Size",
+    Default = false,
+    Callback = function(value)
+        Options.InfiniteSpraySize.Value = value
+    end
+})
+
+local Toggle = Tabs.Sheriff:AddToggle("FakeBombClutch", {
+    Title = "Fake Bomb Clutch",
+    Default = false,
+    Callback = function(value)
+        Options.FakeBombClutch.Value = value
+    end
+})
+
+local GunHook
+GunHook = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = { ... }
+    if not checkcaller() then
+        if typeof(self) == "Instance" then
+            if self.Name == "RemoteFunction" and method == "InvokeServer" then
+                if Options.SilentAim.Value then 
+                    if Murderer and Sheriff == LocalPlayer.Name then
+                        local Root = workspace[tostring(Murderer)].PrimaryPart;
+                        local Veloc = Root.AssemblyLinearVelocity;
+                        local Pos = Root.Position 
+                        if Options.AimAssistType.Value == "Overflow" then
+                            if Veloc.Magnitude == 0 then
+                                args[2] = Pos
+                            else
+                                local velocityUnit = Veloc.Unit
+                                local velocityMagnitude = Veloc.Magnitude
+                                local silentAimPosition = Pos + Vector3.new((velocityUnit * velocityMagnitude) / 17 + Root.Parent.Humanoid.MoveDirection)
+                                args[2] = silentAimPosition
+                            end
+                        elseif Options.AimAssistType.Value == "Seismic" then
+                            if Veloc.Magnitude == 0 then
+                                args[2] = Pos
+                            else
+                                local velocityUnit = Veloc.Unit
+                                local velocityMagnitude = Veloc.Magnitude
+                                local silentAimPosition = Pos + Vector3.new((velocityUnit * velocityMagnitude) / 16.5)
+                                args[2] = silentAimPosition
+                            end
+                        elseif Options.AimAssistType.Value == "Dynamic" then
+                            args[2] = Pos + Root.Parent.Humanoid.MoveDirection
+                        elseif Options.AimAssistType.Value == "Regular" then
+                            args[2] = Pos
+                        end
+                    end;
+                else
+                    return GunHook(self, unpack(args));
+                end;
+            elseif self.Name == "SprayPaint" and method == "FireServer" then
+                if Options.InfiniteSpraySize.Value then
+                    args[3] = 9999
+                end
+            elseif self.Name == "FakeBomb" and method == "FireServer" then
+                if Options.FakeBombClutch.Value then
+                    args[1] = LocalPlayer.Character.Head.CFrame * CFrame.new(0, -4, -5)
+                end
+            elseif self.Name == "Kick" and method == "Kick" then
+                if Options.AntiKick.Value then
+                    return
+                end
+            end;
+        end;
+    end;
+    return GunHook(self, unpack(args));
+end)
+
+local __namecall
+__namecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = { ... }
+    if not checkcaller() then
+        if tostring(method) == "InvokeServer" and tostring(self) == "GetChance" then
+            wait(0.1)
+        end
+    end
+    return __namecall(self, unpack(args))
+end)
+
+-- Hook the __namecall metamethod to intercept method calls
+local KnifeHook
+KnifeHook = hookmetamethod(game, "__namecall", function(self, ...)
+    -- Get the method name and arguments
+    local methodName = getnamecallmethod()
+    local args = { ... }
+
+    -- Check if the caller is not the local script
+    if not checkcaller() then
+        -- Check if the method is "FireServer" and the object is "Throw"
+        if self.Name == "Throw" and methodName == "FireServer" then
+            -- Check if silent aim is enabled
+            if Options.KnifeSilentAim.Value then
+                -- Get the target player
+                local targetPlayer = getTargetPlayer(Options.TargetChecking.Value)
+                if targetPlayer then
+                    -- Calculate the velocity of the target player
+                    local velocity = targetPlayer.Character.HumanoidRootPart.AssemblyLinearVelocity / 3
+                    -- Update the first argument with the calculated position
+                    args[1] = CFrame.new(targetPlayer.Character.HumanoidRootPart.Position + Vector3.new(velocity.X, velocity.Y / 1.5, velocity.Z))
+                end
+            end
+        end
+    end
+    -- Call the original method with the updated arguments
+    return KnifeHook(self, unpack(args))
+end)
+
+-- Function to get the target player
+local function getTargetPlayer(targetMode)
+    local closestPlayer
+    local closestDistance = math.huge
+    if targetMode == "Mouse Cursor" then
+        -- Iterate through all players
+        for _, player in pairs(Players:GetPlayers()) do
+            -- Skip the local player
+            if player.Name ~= LocalPlayer.Name then
+                -- Calculate the distance from the mouse cursor to the player
+                local distance = (getCharacterPart(player).Position - Farm.Hit.Position).Magnitude
+                -- Update the closest player if the distance is smaller
+                if closestDistance > distance then
+                    closestPlayer = player
+                    closestDistance = distance
+                end
+            end
+        end
+        return closestPlayer
+    elseif targetMode == "Closest" then
+        -- Iterate through all players
+        for _, player in pairs(Players:GetPlayers()) do
+            -- Skip the local player
+            if player.Name ~= LocalPlayer.Name then
+                -- Calculate the distance from the local player to the target player
+                local distance = (getCharacterPart(player).Position - getCharacterPart(LocalPlayer)).Magnitude
+                -- Update the closest player if the distance is smaller
+                if closestDistance > distance then
+                    closestPlayer = player
+                    closestDistance = distance
+                end
+            end
+        end
+        return closestPlayer
+    end
+end
+
+-- Function to get the character part (PrimaryPart or HumanoidRootPart)
+local function getCharacterPart(player)
+    return player.Character:FindFirstChild("PrimaryPart") or player.Character:FindFirstChild("HumanoidRootPart")
+end
+
+-- Create a dropdown for target checking
+local Dropdown = Tabs.Settings:AddDropdown("TargetChecking", {
+    Title = "Target Checking",
+    Values = {"Mouse Cursor", "Closest" },
+    Multi = false,
+    Default = "Mouse Cursor",
+    Callback = function(value)
+        Options.TargetChecking.Value = value
+    end
+})
+
+-- Create a toggle for silent aim
+local Toggle = Tabs.Murderer:AddToggle("KnifeSilentAim", {
+    Title = "Knife Silent Aim",
+    Default = true,
+    Callback = function(value)
+        Options.KnifeSilentAim.Value = value
+    end
+})
+
+local AntiKickHook
+AntiKickHook = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = { ... }
+    if not checkcaller() then
+        if tostring(method) == "Kick" then
+            if Options.AntiKick.Value then
+                return
+            end
+        end
+    end
+    return AntiKickHook(self, unpack(args))
+end)
+
+local Toggle = Tabs.Sheriff:AddToggle("AntiKick", {
+    Title = "Anti-Kick",
+    Default = false,
+    Callback = function(value)
+        Options.AntiKick.Value = value
+    end
+})
+
+local function hasPerk(perkName)
+    local playerData = game:GetService("ReplicatedStorage").Remotes.Extras.GetData2:InvokeServer(LocalPlayer)
+    for _, perk in pairs(playerData.Perks.Owned) do
+        if perk == perkName then
+            return true
+        end
+    end
+    return false
+end
+
+local Toggle = Tabs.Murderer:AddToggle("GhostMode", {
+    Title = "Ghost Mode",
+    Default = false,
+    Callback = function(value)
+        if value then
+            if hasPerk("Ghost") then
+                RemoteEventHandler.RemoteEvent(ReplicatedStorage.Remotes.Gameplay.Stealth, true) -- Enable Ghost Mode
+            else
+                nexus:Notify({Title = 'Notification', Content = 'You do not have the Ghost perk.', Duration = 5})
+            end
+        else
+            RemoteEventHandler.RemoteEvent(ReplicatedStorage.Remotes.Gameplay.Stealth, false) -- Disable Ghost Mode
+        end
+    end
+})
+
+-- Set libraries and folders
+SaveManager:SetLibrary(nexus)
+InterfaceManager:SetLibrary(nexus)
+SaveManager:SetIgnoreIndexes({})
+SaveManager:IgnoreThemeSettings()
+InterfaceManager:SetFolder("x")
+SaveManager:SetFolder("x")
+
+-- Build interface section and load the game
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:Load(game.PlaceId)
+
+-- Select the first tab in the window
+Window:SelectTab(1)
+
+
+if not game:IsLoaded() then 
+    game.Loaded:Wait()
+end
+
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GetPlayerDataRemote = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
+local TeleportingToMurderer, GettingGun = false, false
+local Murderer, Sheriff = nil, nil
+local infJumpConnection, Device = false, nil
+local highlights = {}
+
+if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled and not UserInputService.MouseEnabled then
+	Device = "MOBILE"
+end
+
+-- Create a function to check if a player is alive
+local function IsAlive(player, playerData)
+    local role = playerData[player.Name]
+    return role and not role.Killed and not role.Dead
+end
+
+-- Create a function to update player data
+local function updatePlayerData()
+    if GetPlayerDataRemote then
+        local roles = GetPlayerDataRemote:InvokeServer()
+        local playerData = {}
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if not playerData[player.Name] then
+                playerData[player.Name] = { Role = "" }
+            end
+            if roles[player.Name] then
+                playerData[player.Name].Role = roles[player.Name].Role
+                playerData[player.Name].Killed = roles[player.Name].Killed
+                playerData[player.Name].Dead = roles[player.Name].Dead
+            end
+        end
+        return playerData
+    end
+end
+
+-- Create a function to get the role of a player
+local function GetPlayerRole(player)
+    local playerData = updatePlayerData()
+    local role = playerData[player.Name] and playerData[player.Name].Role
+    return role
+end
+
+-- Create a function to highlight a player
+local function HighlightPlayer(player, color)
+    local character = player.Character
+    if character then
+        local highlight = character:FindFirstChild("Highlight")
+        if not highlight then
+            highlight = Instance.new("Highlight")
+            highlight.Parent = character
+        end
+        highlight.FillColor = color
+        highlight.OutlineColor = color
+    end
+end
+
+-- Create a function to highlight players with specific roles
+local function HighlightRoles()
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local role = GetPlayerRole(player)
+            local playerData = updatePlayerData()
+            if role == "Murderer" then
+                if IsAlive(player, playerData) then
+                    HighlightPlayer(player, Color3.new(225, 0, 0)) -- red color for alive Murderer
+                else
+                    HighlightPlayer(player, Color3.new(128, 0, 0)) -- darker red color for dead Murderer
+                end
+            elseif role == "Sheriff" then
+                if IsAlive(player, playerData) then
+                    HighlightPlayer(player, Color3.new(0, 0, 225)) -- blue color for alive Sheriff
+                else
+                    HighlightPlayer(player, Color3.new(0, 0, 128)) -- darker blue color for dead Sheriff
+                end
+            elseif role == "Hero" then
+                if IsAlive(player, playerData) then
+                    HighlightPlayer(player, Color3.new(255, 215, 0)) -- yellow color for alive Hero
+                else
+                    HighlightPlayer(player, Color3.new(255, 255, 255)) -- white color for dead Hero
+                end
+            end
+        end
+    end
+end
+
+-- Create a function to update highlights
+local function UpdateHighlights()
+    for _, v in pairs(Players:GetChildren()) do
+        pcall(function()
+            local highlight = v.Character and v.Character:FindFirstChild("Highlight")
+            if highlight then
+                if IsAlive(v, updatePlayerData()) then
+                    local role = updatePlayerData()[v.Name]
+                    if role then
+                        if role.Role == "Murderer" then
+                            highlight.FillColor = Color3.fromRGB(225, 0, 0)
+                        elseif role.Role == 'Sheriff' then
+                            highlight.FillColor = Color3.fromRGB(0, 0, 225)
+                        elseif role.Role == 'Hero' then
+                            highlight.FillColor = Color3.fromRGB(255, 215, 0) -- yellow color for Hero
+                        else
+                            highlight.FillColor = Color3.fromRGB(76, 215, 134)
+                        end 
+                    else
+                    highlight.FillColor = Color3.fromRGB(76, 215, 134)
+                        end 
+                    else
+                    highlight.FillColor = Color3.fromRGB(255, 255, 255)
+                end
+            end
+        end)
+    end
+end
+
+-- Run the highlight function every second
+while true do
+    HighlightRoles()
+    wait(1)
+end
